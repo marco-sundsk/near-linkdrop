@@ -208,7 +208,6 @@ impl LinkDrop {
             count: count,
        };
 
-
         let red_key: RedInfoKey = RedInfoKey::new();// TODO 唯一key
         self.red_info.insert(&red_key, &red_info);
 
@@ -220,7 +219,7 @@ impl LinkDrop {
             pk,
             ACCESS_KEY_ALLOWANCE,
             env::current_account_id(),
-            b"claim,create_account_and_claim".to_vec(),
+            b"".to_vec(),
         )
     }
 
@@ -452,5 +451,19 @@ mod tests {
             contract.accounts.get(&pk.into()).unwrap(),
             deposit + deposit + 1 - 2 * ACCESS_KEY_ALLOWANCE
         );
+    }
+
+    #[test]
+    fn test_send_redbag() {
+        let mut contract = LinkDrop::default();
+        let pk: Base58PublicKey = "qSq3LoufLvTCTNGC3LJePMDGrok8dHMQ5A1YD9psbiz"
+            .try_into()
+            .unwrap();
+        let deposit = 1_000_000;
+        testing_env!(VMContextBuilder::new()
+            .current_account_id(linkdrop())
+            .attached_deposit(deposit)
+            .finish());
+        contract.send_redbag(pk, 10, 1);
     }
 }
