@@ -206,7 +206,7 @@ impl LinkDrop {
         let red_info = RedInfo {
             mode: mode,
             count: count,
-       };
+        };
 
         let red_key: RedInfoKey = RedInfoKey::new();// TODO 唯一key
         self.red_info.insert(&red_key, &red_info);
@@ -238,13 +238,27 @@ impl LinkDrop {
     // pub fn revoke(&mut self, public_key: Base58PublicKey) -> Promise {
     //
     // }
-    //
-    pub fn show_claim_info(self, public_key: Base58PublicKey) {
+
+    /// 查询用户发的所有红包
+    pub fn show_claim_info(self, public_key: Base58PublicKey) -> Vec<RedInfoKey> {
         let pk = public_key.into();
         let red_info_vec = self.sender_red_info.get(&pk).unwrap();
-        for _x in red_info_vec {
-            // 在这组装返回至调用端的红包信息
+        red_info_vec
+    }
+
+    /// 查询某个红包领取详情
+    pub fn show_redbag_info(self, red_info_key: RedInfoKey) -> Vec<Base58PublicKey> {
+        let rik = red_info_key.into();
+
+        let records = self.red_receive_record.get(&rik).unwrap();
+
+        let mut vec = Vec::new();
+
+        for record_item in records {
+            vec.push(record_item);
         }
+
+        vec
     }
 }
 
