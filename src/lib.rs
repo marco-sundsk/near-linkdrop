@@ -191,6 +191,7 @@ impl LinkDrop {
     }
 
     ///  发（创建）红包功能
+    #[payable]
     pub fn send_redbag(&mut self, public_key: Base58PublicKey, count: u128, mode: u8) -> Promise {
         assert!(
             env::attached_deposit() > count,
@@ -205,7 +206,7 @@ impl LinkDrop {
             count: count,
         };
 
-        assert!(self.red_info.get(&pk).is_some(), "existed");
+        assert!(self.red_info.get(&pk).is_none(), "existed");
 
         self.red_info.insert(&pk, &new_red_info);
 
@@ -233,11 +234,12 @@ impl LinkDrop {
     //
     // }
 
-    /// 查询用户发的所有红包
-    pub fn show_claim_info(self, public_key: Base58PublicKey) -> RedInfo {
-        let pk = public_key.into();
-        let red_info_obj = self.red_info.get(&pk).unwrap();
-        red_info_obj
+    /// 查询用户发的红包
+    pub fn show_claim_info(self, public_key: Base58PublicKey) -> Vec<String> {
+        // let pk = public_key.into();
+        // let red_info_obj = self.red_info.get(&pk).unwrap();
+
+        Vec::new()
     }
 }
 
