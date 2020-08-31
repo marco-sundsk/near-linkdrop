@@ -194,7 +194,7 @@ impl LinkDrop {
     pub fn send_redbag(&mut self, public_key: Base58PublicKey, count: u128, mode: u8) -> Promise {
         assert!(
             env::attached_deposit() > count,
-            "Attached deposit must be greater than ACCESS_KEY_ALLOWANCE"
+            "Attached deposit must be greater than count"
         );
 
         let pk = public_key.clone().into();
@@ -204,6 +204,8 @@ impl LinkDrop {
             mode: mode,
             count: count,
         };
+
+        assert!(self.red_info.get(&pk).is_some(), "existed");
 
         self.red_info.insert(&pk, &new_red_info);
 
