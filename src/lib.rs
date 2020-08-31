@@ -9,7 +9,6 @@ use near_sdk::{
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 /// 红包信息结构
-#[near_bindgen]
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct RedInfo {
     pub mode: u8, // 红包模式,随机红包1;均分红包0
@@ -24,9 +23,7 @@ pub type RedInfoKey = Vec<u8>;
 pub struct LinkDrop {
     pub accounts: Map<PublicKey, Balance>,
 
-    pub red_info: Map<RedInfoKey, RedInfo>, // 发送红包信息，key为随机信息，value为红包信息
-
-    pub sender_red_info: Map<PublicKey, Vec<RedInfoKey>>, // 红包与用户对应关系
+    pub red_info: Map<PublicKey, RedInfo>, // 发送红包信息，key为随机信息，value为红包信息
 
     pub red_receive_record: Map<RedInfoKey, Vec<Base58PublicKey>>, // 红包领取记录
 }
@@ -203,17 +200,12 @@ impl LinkDrop {
         let pk = public_key.clone().into();
 
         // 红包信息
-        let red_info = RedInfo {
+        let new_red_info = RedInfo {
             mode: mode,
             count: count,
         };
 
-        let red_key: RedInfoKey = RedInfoKey::new();// TODO 唯一key
-        self.red_info.insert(&red_key, &red_info);
-
-        let mut sender_red_info_vec = self.sender_red_info.get(&pk).unwrap_or(Vec::new());
-        sender_red_info_vec.push(red_key);
-        self.sender_red_info.insert(&public_key.into(), &sender_red_info_vec);
+        self.red_info.insert(&pk, &new_red_info);
 
         Promise::new(env::current_account_id()).add_access_key(
             pk,
@@ -240,25 +232,10 @@ impl LinkDrop {
     // }
 
     /// 查询用户发的所有红包
-    pub fn show_claim_info(self, public_key: Base58PublicKey) -> Vec<RedInfoKey> {
+    pub fn show_claim_info(self, public_key: Base58PublicKey) -> RedInfo {
         let pk = public_key.into();
-        let red_info_vec = self.sender_red_info.get(&pk).unwrap();
-        red_info_vec
-    }
-
-    /// 查询某个红包领取详情
-    pub fn show_redbag_info(self, red_info_key: RedInfoKey) -> Vec<Base58PublicKey> {
-        let rik = red_info_key.into();
-
-        let records = self.red_receive_record.get(&rik).unwrap();
-
-        let mut vec = Vec::new();
-
-        for record_item in records {
-            vec.push(record_item);
-        }
-
-        vec
+        let red_info_obj = self.red_info.get(&pk).unwrap();
+        red_info_obj
     }
 }
 
