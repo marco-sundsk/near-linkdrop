@@ -4,11 +4,13 @@ use near_sdk::json_types::{Base58PublicKey, U128};
 use near_sdk::{
     env, ext_contract, near_bindgen, AccountId, Balance, Promise, PromiseResult, PublicKey,
 };
+use std::fmt;
 
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 
 /// 红包信息结构
+#[derive(Clone)]
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct RedInfo {
     pub mode: u8, // 红包模式,随机红包1;均分红包0
@@ -235,11 +237,13 @@ impl LinkDrop {
     // }
 
     /// 查询用户发的红包
-    pub fn show_claim_info(self, public_key: Base58PublicKey) -> Vec<String> {
-        // let pk = public_key.into();
-        // let red_info_obj = self.red_info.get(&pk).unwrap();
+    pub fn show_claim_info(self, public_key: Base58PublicKey) -> String {
+        let pk = public_key.into();
+        let red_info_obj = self.red_info.get(&pk).unwrap();
+        let str = fmt::format(format_args!("{}\"count\":{}, \"mode\":{}{}", "{", red_info_obj.count, red_info_obj.mode, "}"));
+        str
 
-        Vec::new()
+        // Vec::new()
     }
 }
 
