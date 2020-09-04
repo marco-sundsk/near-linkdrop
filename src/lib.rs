@@ -4,7 +4,6 @@ use near_sdk::json_types::{Base58PublicKey, U128};
 use near_sdk::{
     env, ext_contract, near_bindgen, AccountId, Balance, Promise, PromiseResult, PublicKey,
 };
-use std::fmt;
 
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
@@ -26,6 +25,8 @@ pub struct LinkDrop {
     pub accounts: Map<PublicKey, Balance>,
 
     pub red_info: Map<PublicKey, RedInfo>, // 发送红包信息，key为随机信息，value为红包信息
+
+    pub sender_redbag: Map<AccountId, Vec<Base58PublicKey>>, // 发送红包用户与红包关联关系
 
     pub red_receive_record: Map<RedInfoKey, Vec<Base58PublicKey>>, // 红包领取记录
 }
@@ -211,6 +212,9 @@ impl LinkDrop {
         assert!(self.red_info.get(&pk).is_none(), "existed");
 
         self.red_info.insert(&pk, &new_red_info);
+        let mut relation_vec = self.sender_redbag.get(&env::signer_account_id()).unwrap_or(Vec::new());
+        relation_vec.push(public_key.clone());
+        self.sender_redbag.insert(&env::signer_account_id(), &relation_vec);
 
         Promise::new(env::current_account_id()).add_access_key(
             pk,
@@ -231,19 +235,22 @@ impl LinkDrop {
     //
     // }
 
-    // 发红包任用来撤回对应public_key的红包剩余金额
-    // pub fn revoke(&mut self, public_key: Base58PublicKey) -> Promise {
-    //
-    // }
+    /// 发红包任用来撤回对应public_key的红包剩余金额
+    pub fn revoke(&mut self, public_key: Base58PublicKey) -> &str {
+        "success"
+    }
 
     /// 查询用户发的红包
     pub fn show_claim_info(self, public_key: Base58PublicKey) -> String {
         let pk = public_key.into();
         let red_info_obj = self.red_info.get(&pk).unwrap();
-        let str = fmt::format(format_args!("{}\"count\":{}, \"mode\":{}{}", "{", red_info_obj.count, red_info_obj.mode, "}"));
-        str
+        format!("{}\"count\":{}, \"mode\":{}{}", "{", red_info_obj.count, red_info_obj.mode, "}")
+    }
 
-        // Vec::new()
+    /// 查询用户所发的所有红包
+    pub fn show_redbag(self) -> Vec<Base58PublicKey> {
+        let relation_vec = self.sender_redbag.get(&env::signer_account_id()).unwrap_or(Vec::new());
+        relation_vec
     }
 }
 
