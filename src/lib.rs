@@ -4,6 +4,7 @@ use near_sdk::json_types::{Base58PublicKey, U128};
 use near_sdk::{
     env, ext_contract, near_bindgen, AccountId, Balance, Promise, PromiseResult, PublicKey,
 };
+use std::convert::TryInto;
 
 #[global_allocator]
 static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
@@ -17,6 +18,14 @@ pub struct RedInfo {
     pub count: u128, // 红包数量
 }
 
+#[derive(Clone)]
+#[derive(BorshDeserialize, BorshSerialize)]
+pub struct ReceivedRedInfo {
+    pub amount: Balance, // 领取到红包价值
+
+    pub redbag: Base58PublicKey, // 红包
+}
+
 pub type RedInfoKey = Vec<u8>;
 
 #[near_bindgen]
@@ -28,7 +37,9 @@ pub struct LinkDrop {
 
     pub sender_redbag: Map<AccountId, Vec<Base58PublicKey>>, // 发送红包用户与红包关联关系
 
-    pub red_receive_record: Map<RedInfoKey, Vec<Base58PublicKey>>, // 红包领取记录
+    pub red_receive_record: Map<PublicKey, Vec<AccountId>>, // 红包领取记录(某红包被哪些人领取)
+
+    pub receiver_redbag_record: Map<AccountId, Vec<ReceivedRedInfo>>, // 用户所领取的红包
 }
 
 /// Access key allowance for linkdrop keys.
@@ -86,7 +97,7 @@ impl LinkDrop {
     }
 
     /// Claim tokens for specific account that are attached to the public key this tx is signed with.
-    pub fn claim(&mut self, account_id: AccountId) -> Promise {
+    pub fn claim_old(&mut self, account_id: AccountId) -> Promise {
         assert_eq!(
             env::predecessor_account_id(),
             env::current_account_id(),
@@ -105,7 +116,7 @@ impl LinkDrop {
     }
 
     /// Create new account and and claim tokens to it.
-    pub fn create_account_and_claim(
+    pub fn create_account_and_claim_old(
         &mut self,
         new_account_id: AccountId,
         new_public_key: Base58PublicKey,
@@ -224,20 +235,52 @@ impl LinkDrop {
         )
     }
 
-    // TODO 创建新用户并同时领取红包
-    // pub fn create_account_and_claim_new(
-    //     &mut self,
-    //     new_account_id: AccountId,
-    //     new_public_key: Base58PublicKey) -> Promist {}
+    /// 创建新用户并同时领取红包
+    pub fn create_account_and_claim(
+        &mut self,
+        _new_account_id: AccountId,
+        _new_public_key: Base58PublicKey) -> &str {
+        "create_account_and_claim success"
+    }
 
-    // TODO 领取红包
-    // pub fn claim_new(&mut self, account_id: AccountId) -> Promise {
-    //
-    // }
+    /// 领取红包
+    pub fn claim(&mut self, account_id: AccountId) -> Promise {
+        let pk = env::signer_account_pk();
+
+        // 查看红包是否存在
+        let redbag = self.red_info.get(&pk);
+        assert!(redbag.is_some(), "红包不存在");
+
+        // 查看红包剩余数量是否可被领取
+        let count = redbag.unwrap().count;
+        let record = self.red_receive_record.get(&pk).unwrap_or(Vec::new());
+        assert!(record.len() < count.try_into().unwrap(), "红包已被领取完");
+
+        // 判断用户手否领取过
+        for x in record {
+            assert!(x != account_id, "该用户已领取过");
+        }
+
+        // 分配红包
+        let mut receiver_record = self.receiver_redbag_record.get(&account_id).unwrap_or(Vec::new());
+
+        let amount: Balance = 1; // TODO 此处应该生成随机的金额
+
+        let received_redbag_info = ReceivedRedInfo {
+            amount: amount,
+            redbag: Base58PublicKey(pk.into()),
+        };
+
+        receiver_record.push(received_redbag_info);
+        self.receiver_redbag_record.insert(&account_id, &receiver_record);
+
+        // 减少红包数量及金额
+        Promise::new(account_id).transfer(amount)
+    }
 
     /// 发红包任用来撤回对应public_key的红包剩余金额
-    pub fn revoke(&mut self, public_key: Base58PublicKey) -> &str {
-        "success"
+    pub fn revoke(&mut self, _public_key: Base58PublicKey) -> &str {
+        "revoke success"
     }
 
     /// 查询用户发的红包
