@@ -238,9 +238,44 @@ impl LinkDrop {
     /// 创建新用户并同时领取红包
     pub fn create_account_and_claim(
         &mut self,
-        _new_account_id: AccountId,
-        _new_public_key: Base58PublicKey) -> &str {
-        "create_account_and_claim success"
+        new_account_id: AccountId,
+        new_public_key: Base58PublicKey) -> Promise {
+
+        let pk = env::signer_account_pk();
+
+        // 查看红包是否存在
+        let redbag = self.red_info.get(&pk);
+        assert!(redbag.is_some(), "红包不存在");
+
+        // 查看红包剩余数量是否可被领取
+        let count = redbag.unwrap().count;
+        let record = self.red_receive_record.get(&pk).unwrap_or(Vec::new());
+        assert!(record.len() < count.try_into().unwrap(), "红包已被领取完");
+
+        // 分配红包
+        let mut receiver_record = self.receiver_redbag_record.get(&new_account_id).unwrap_or(Vec::new());
+
+        let amount: Balance = 1; // TODO 此处应该生成随机的金额
+
+        let received_redbag_info = ReceivedRedInfo {
+            amount: amount,
+            redbag: Base58PublicKey(pk.into()),
+        };
+
+        receiver_record.push(received_redbag_info);
+        self.receiver_redbag_record.insert(&new_account_id, &receiver_record);
+
+        Promise::new(new_account_id)
+            .create_account()
+            .add_full_access_key(new_public_key.into())
+            .transfer(amount)
+            .then(ext_self::on_account_created(
+                env::predecessor_account_id(),
+                amount.into(),
+                &env::current_account_id(),
+                NO_DEPOSIT,
+                ON_CREATE_ACCOUNT_CALLBACK_GAS,
+            ))
     }
 
     /// 领取红包
