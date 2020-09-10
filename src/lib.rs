@@ -43,7 +43,7 @@ pub struct LinkDrop {
 }
 
 /// Access key allowance for linkdrop keys.
-const ACCESS_KEY_ALLOWANCE: u128 = 1_000_000_000_000_000_000_000;
+const ACCESS_KEY_ALLOWANCE: u128 = 50_000_000_000_000_000_000_000;
 
 /// Gas attached to the callback from account creation.
 pub const ON_CREATE_ACCOUNT_CALLBACK_GAS: u64 = 40_000_000_000_000;
@@ -208,8 +208,8 @@ impl LinkDrop {
     #[payable]
     pub fn send_redbag(&mut self, public_key: Base58PublicKey, count: u128, mode: u8) -> Promise {
         assert!(
-            env::attached_deposit() > count,
-            "Attached deposit must be greater than count"
+            env::attached_deposit() > ACCESS_KEY_ALLOWANCE,
+            "Attached deposit must be greater than ACCESS_KEY_ALLOWANCE"
         );
 
         let pk = public_key.clone().into();
@@ -231,7 +231,7 @@ impl LinkDrop {
             pk,
             ACCESS_KEY_ALLOWANCE,
             env::current_account_id(),
-            b"".to_vec(),
+            b"create_account_and_claim,claim,revoke".to_vec(),
         )
     }
 
@@ -288,18 +288,21 @@ impl LinkDrop {
 
         // 查看红包剩余数量是否可被领取
         let count = redbag.unwrap().count;
-        let record = self.red_receive_record.get(&pk).unwrap_or(Vec::new());
+        let mut record = self.red_receive_record.get(&pk).unwrap_or(Vec::new());
         assert!(record.len() < count.try_into().unwrap(), "红包已被领取完");
 
         // 判断用户手否领取过
-        for x in record {
-            assert!(x != account_id, "该用户已领取过");
+        for x in &record {
+            assert!(String::from(x) != account_id, "该用户已领取过");
         }
+
+        record.push(String::from(&account_id));
+        self.red_receive_record.insert(&pk, &record);
 
         // 分配红包
         let mut receiver_record = self.receiver_redbag_record.get(&account_id).unwrap_or(Vec::new());
 
-        let amount: Balance = 1; // TODO 此处应该生成随机的金额
+        let amount: Balance = 1 * ACCESS_KEY_ALLOWANCE; // TODO 此处应该生成随机的金额
 
         let received_redbag_info = ReceivedRedInfo {
             amount: amount,
@@ -326,8 +329,8 @@ impl LinkDrop {
     }
 
     /// 查询用户所发的所有红包
-    pub fn show_redbag(self) -> Vec<Base58PublicKey> {
-        let relation_vec = self.sender_redbag.get(&env::signer_account_id()).unwrap_or(Vec::new());
+    pub fn show_redbag(self, account_id: AccountId) -> Vec<Base58PublicKey> {
+        let relation_vec = self.sender_redbag.get(&account_id).unwrap_or(Vec::new());
         relation_vec
     }
 }
