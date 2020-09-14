@@ -342,8 +342,22 @@ impl LinkDrop {
     /// 查询用户发的红包
     pub fn show_claim_info(self, public_key: Base58PublicKey) -> String {
         let pk = public_key.into();
-        let red_info_obj = self.red_info.get(&pk).unwrap();
-        format!("{}\"count\":{}, \"mode\":{}{}", "{", red_info_obj.count, red_info_obj.mode, "}")
+        let red_info_obj = self.red_info.get(&pk);
+
+        assert!(red_info_obj.is_some(), "红包不存在");
+
+        // pub receiver_redbag_record: Map<AccountId, Vec<ReceivedRedInfo>>, // 用户所领取的红包
+
+        let receive_record = self.red_receive_record.get(&pk).unwrap_or(Vec::new());
+
+        let mut record_list = String::new();
+        for item in receive_record.iter() {
+            record_list.push_str(&String::from(item));
+            record_list.push_str(&";");
+        }
+
+        let temp_red_info = red_info_obj.unwrap();
+        format!("{}\"count\":{}, \"mode\":{}\"list\":{}{}", "{", temp_red_info.count, temp_red_info.mode, record_list, "}")
     }
 
     /// 查询用户所发的所有红包
