@@ -322,8 +322,20 @@ impl LinkDrop {
 
     /// 发红包任用来撤回对应public_key的红包剩余金额
     pub fn revoke(&mut self, public_key: Base58PublicKey) -> &str {
-        let pk = public_key.into();
+        let pk = public_key.clone().into();
         self.red_info.remove(&pk);
+        let mut red_list = self.sender_redbag.get(&env::signer_account_id()).unwrap();
+
+        let mut index = 0;
+        for item in red_list.clone().iter() {
+            if item == &public_key {
+                break;
+            }
+            index += 1;
+        }
+
+        red_list.remove(index);
+        self.sender_redbag.insert(&env::signer_account_id(), &red_list);
         "revoke success"
     }
 
