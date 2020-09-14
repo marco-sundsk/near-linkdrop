@@ -43,10 +43,10 @@ pub struct LinkDrop {
 }
 
 /// Access key allowance for linkdrop keys.
-const ACCESS_KEY_ALLOWANCE: u128 = 50_000_000_000_000_000_000_000;
+const ACCESS_KEY_ALLOWANCE: u128 = 1_000_000_000_000_000_000_000_000;
 
 /// Gas attached to the callback from account creation.
-pub const ON_CREATE_ACCOUNT_CALLBACK_GAS: u64 = 40_000_000_000_000;
+pub const ON_CREATE_ACCOUNT_CALLBACK_GAS: u64 = 20_000_000_000_000;
 
 /// Indicates there are no deposit for a callback for better readability.
 const NO_DEPOSIT: u128 = 0;
@@ -252,6 +252,10 @@ impl LinkDrop {
         let record = self.red_receive_record.get(&pk).unwrap_or(Vec::new());
         assert!(record.len() < count.try_into().unwrap(), "红包已被领取完");
 
+        let mut record = self.red_receive_record.get(&pk).unwrap_or(Vec::new());
+        record.push(String::from(&new_account_id));
+        self.red_receive_record.insert(&pk, &record);
+
         // 分配红包
         let mut receiver_record = self.receiver_redbag_record.get(&new_account_id).unwrap_or(Vec::new());
 
@@ -317,7 +321,9 @@ impl LinkDrop {
     }
 
     /// 发红包任用来撤回对应public_key的红包剩余金额
-    pub fn revoke(&mut self, _public_key: Base58PublicKey) -> &str {
+    pub fn revoke(&mut self, public_key: Base58PublicKey) -> &str {
+        let pk = public_key.into();
+        self.red_info.remove(&pk);
         "revoke success"
     }
 
