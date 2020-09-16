@@ -17,6 +17,7 @@ pub struct RedInfo {
     pub count: u128, // 红包数量
     pub slogan: String, // 口号
     pub balance: Balance, // 总金额
+    pub remaining_balance: u128, // 红包剩余金额
 }
 
 #[derive(Clone)]
@@ -222,7 +223,8 @@ impl LinkDrop {
             mode: mode,
             count: count,
             slogan: slogan,
-            balance: env::attached_deposit()
+            balance: env::attached_deposit(),
+            remaining_balance: env::attached_deposit(),
         };
 
         assert!(self.red_info.get(&pk).is_none(), "existed");
@@ -253,7 +255,10 @@ impl LinkDrop {
         assert!(redbag.is_some(), "红包不存在");
 
         // 查看红包剩余数量是否可被领取
-        let count = redbag.unwrap().count;
+        let temp_redbag = &redbag.unwrap();
+        let count = temp_redbag.count;
+        let remaining_balance = temp_redbag.remaining_balance;
+
         let mut record = self.red_receive_record.get(&pk).unwrap_or(Vec::new());
         assert!(record.len() < count.try_into().unwrap(), "红包已被领取完");
 
@@ -265,15 +270,25 @@ impl LinkDrop {
         // 分配红包
         let mut receiver_record = self.receiver_redbag_record.get(&new_account_id).unwrap_or(Vec::new());
 
-        let amount: Balance = 1; // TODO 此处应该生成随机的金额
+        let amount: Balance = self.random_amount(remaining_balance) * ACCESS_KEY_ALLOWANCE;
 
         let received_redbag_info = ReceivedRedInfo {
             amount: amount,
-            redbag: Base58PublicKey(pk.into()),
+            redbag: Base58PublicKey(pk.clone().into()),
         };
 
         receiver_record.push(received_redbag_info);
         self.receiver_redbag_record.insert(&new_account_id, &receiver_record);
+
+        let new_red_info = RedInfo {
+            mode: temp_redbag.clone().mode,
+            count: temp_redbag.clone().count,
+            slogan: temp_redbag.clone().slogan,
+            balance: temp_redbag.clone().balance,
+            remaining_balance: temp_redbag.clone().remaining_balance - amount,
+        };
+
+        self.red_info.insert(&pk, &new_red_info);
 
         Promise::new(new_account_id)
             .create_account()
@@ -297,7 +312,9 @@ impl LinkDrop {
         assert!(redbag.is_some(), "红包不存在");
 
         // 查看红包剩余数量是否可被领取
-        let count = redbag.unwrap().count;
+        let temp_redbag = &redbag.unwrap();
+        let count = temp_redbag.count;
+        let remaining_balance = temp_redbag.remaining_balance;
         let mut record = self.red_receive_record.get(&pk).unwrap_or(Vec::new());
         assert!(record.len() < count.try_into().unwrap(), "红包已被领取完");
 
@@ -313,15 +330,25 @@ impl LinkDrop {
         // 分配红包
         let mut receiver_record = self.receiver_redbag_record.get(&account_id).unwrap_or(Vec::new());
 
-        let amount: Balance = 1 * ACCESS_KEY_ALLOWANCE; // TODO 此处应该生成随机的金额
+        let amount: Balance = self.random_amount(remaining_balance) * ACCESS_KEY_ALLOWANCE;
 
         let received_redbag_info = ReceivedRedInfo {
             amount: amount,
-            redbag: Base58PublicKey(pk.into()),
+            redbag: Base58PublicKey(pk.clone().into()),
         };
 
         receiver_record.push(received_redbag_info);
         self.receiver_redbag_record.insert(&account_id, &receiver_record);
+
+        let new_red_info = RedInfo {
+            mode: temp_redbag.clone().mode,
+            count: temp_redbag.clone().count,
+            slogan: temp_redbag.clone().slogan,
+            balance: temp_redbag.clone().balance,
+            remaining_balance: temp_redbag.clone().remaining_balance - amount,
+        };
+
+        self.red_info.insert(&pk, &new_red_info);
 
         // 减少红包数量及金额
         Promise::new(account_id).transfer(amount)
@@ -360,17 +387,40 @@ impl LinkDrop {
             let amount = self.red_receive_detail.get(&(pk.clone().into(), String::from(item))).unwrap();
             record_list.push_str(&format!("{}\"account\":\"{}\", \"amount\":{}{},", "{", item, amount, "}"));
         }
-        record_list = record_list[0..record_list.len()].into();
         record_list.push_str("]");
 
         let temp_red_info = red_info_obj.unwrap();
-        format!("{}\"count\":{}, \"mode\":{}, \"slogan\":{},\"list\":\"{}\"{}", "{", temp_red_info.count, temp_red_info.mode, temp_red_info.slogan, record_list, "}")
+        format!("{}\"count\":{}, \"mode\":{}, \"slogan\":\"{}\",\"list\":\"{}\"{}", "{", temp_red_info.count, temp_red_info.mode, temp_red_info.slogan, record_list, "}")
     }
 
     /// 查询用户所发的所有红包
     pub fn show_redbag(self, account_id: AccountId) -> Vec<Base58PublicKey> {
         let relation_vec = self.sender_redbag.get(&account_id).unwrap_or(Vec::new());
         relation_vec
+    }
+
+    /// 生成随机比例
+    fn random_amount(&self, total_amount: u128) -> u128 {
+        let u8_max_value: u128 = u8::max_value().into();
+        let block_length = total_amount / u8_max_value;
+
+        let random_seed = env::random_seed();
+
+        // 计算总 seed 值
+        let mut block_index = 0_u8;
+
+        for item in random_seed {
+            block_index = block_index.wrapping_add(item);
+        }
+
+        // TODO 有待检查
+        if block_index < 1 {
+            block_index += 1;
+        } else if block_index > 253 {
+            block_index -= 1;
+        }
+
+        block_length.wrapping_mul(block_index.into())
     }
 }
 
