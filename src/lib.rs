@@ -14,8 +14,9 @@ static ALLOC: wee_alloc::WeeAlloc = wee_alloc::WeeAlloc::INIT;
 #[derive(BorshDeserialize, BorshSerialize)]
 pub struct RedInfo {
     pub mode: u8, // 红包模式,随机红包1;均分红包0
-
     pub count: u128, // 红包数量
+    pub slogan: String, // 口号
+    pub balance: Balance, // 总金额
 }
 
 #[derive(Clone)]
@@ -38,6 +39,8 @@ pub struct LinkDrop {
     pub sender_redbag: Map<AccountId, Vec<Base58PublicKey>>, // 发送红包用户与红包关联关系
 
     pub red_receive_record: Map<PublicKey, Vec<AccountId>>, // 红包领取记录(某红包被哪些人领取)
+
+    pub red_receive_detail: Map<(PublicKey, AccountId), u128>, // 红包领取详细信息（红包、领取人、领取数量）
 
     pub receiver_redbag_record: Map<AccountId, Vec<ReceivedRedInfo>>, // 用户所领取的红包
 }
@@ -206,7 +209,7 @@ impl LinkDrop {
 
     ///  发（创建）红包功能
     #[payable]
-    pub fn send_redbag(&mut self, public_key: Base58PublicKey, count: u128, mode: u8) -> Promise {
+    pub fn send_redbag(&mut self, public_key: Base58PublicKey, count: u128, mode: u8, slogan: String) -> Promise {
         assert!(
             env::attached_deposit() > ACCESS_KEY_ALLOWANCE,
             "Attached deposit must be greater than ACCESS_KEY_ALLOWANCE"
@@ -218,6 +221,8 @@ impl LinkDrop {
         let new_red_info = RedInfo {
             mode: mode,
             count: count,
+            slogan: slogan,
+            balance: env::attached_deposit()
         };
 
         assert!(self.red_info.get(&pk).is_none(), "existed");
@@ -249,12 +254,13 @@ impl LinkDrop {
 
         // 查看红包剩余数量是否可被领取
         let count = redbag.unwrap().count;
-        let record = self.red_receive_record.get(&pk).unwrap_or(Vec::new());
+        let mut record = self.red_receive_record.get(&pk).unwrap_or(Vec::new());
         assert!(record.len() < count.try_into().unwrap(), "红包已被领取完");
 
-        let mut record = self.red_receive_record.get(&pk).unwrap_or(Vec::new());
         record.push(String::from(&new_account_id));
         self.red_receive_record.insert(&pk, &record);
+
+        self.red_receive_detail.insert(&(pk.clone().into(), new_account_id.clone()), &count);
 
         // 分配红包
         let mut receiver_record = self.receiver_redbag_record.get(&new_account_id).unwrap_or(Vec::new());
@@ -302,6 +308,7 @@ impl LinkDrop {
 
         record.push(String::from(&account_id));
         self.red_receive_record.insert(&pk, &record);
+        self.red_receive_detail.insert(&(pk.clone().into(), account_id.clone()), &count);
 
         // 分配红包
         let mut receiver_record = self.receiver_redbag_record.get(&account_id).unwrap_or(Vec::new());
@@ -346,18 +353,18 @@ impl LinkDrop {
 
         assert!(red_info_obj.is_some(), "红包不存在");
 
-        // pub receiver_redbag_record: Map<AccountId, Vec<ReceivedRedInfo>>, // 用户所领取的红包
-
         let receive_record = self.red_receive_record.get(&pk).unwrap_or(Vec::new());
 
-        let mut record_list = String::new();
+        let mut record_list = String::from("[");
         for item in receive_record.iter() {
-            record_list.push_str(&String::from(item));
-            record_list.push_str(&";");
+            let amount = self.red_receive_detail.get(&(pk.clone().into(), String::from(item))).unwrap();
+            record_list.push_str(&format!("{}\"account\":\"{}\", \"amount\":{}{},", "{", item, amount, "}"));
         }
+        record_list = record_list[0..record_list.len()].into();
+        record_list.push_str("]");
 
         let temp_red_info = red_info_obj.unwrap();
-        format!("{}\"count\":{}, \"mode\":{}\"list\":{}{}", "{", temp_red_info.count, temp_red_info.mode, record_list, "}")
+        format!("{}\"count\":{}, \"mode\":{}, \"slogan\":{},\"list\":\"{}\"{}", "{", temp_red_info.count, temp_red_info.mode, temp_red_info.slogan, record_list, "}")
     }
 
     /// 查询用户所发的所有红包
@@ -570,19 +577,5 @@ mod tests {
             contract.accounts.get(&pk.into()).unwrap(),
             deposit + deposit + 1 - 2 * ACCESS_KEY_ALLOWANCE
         );
-    }
-
-    #[test]
-    fn test_send_redbag() {
-        let mut contract = LinkDrop::default();
-        let pk: Base58PublicKey = "qSq3LoufLvTCTNGC3LJePMDGrok8dHMQ5A1YD9psbiz"
-            .try_into()
-            .unwrap();
-        let deposit = 1_000_000;
-        testing_env!(VMContextBuilder::new()
-            .current_account_id(linkdrop())
-            .attached_deposit(deposit)
-            .finish());
-        contract.send_redbag(pk, 10, 1);
     }
 }
