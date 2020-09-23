@@ -281,6 +281,13 @@ impl LinkDrop {
 
         block_length.wrapping_mul(block_index.into())
     }
+
+    /// Returns the balance associated with given key.
+    pub fn get_key_balance(&self, key: Base58PublicKey) -> U128 {
+        let pk = key.clone().into();
+        let redbag_info = self.red_info.get(&pk).unwrap();
+        redbag_info.remaining_balance.into()
+    }
 }
 
 #[cfg(not(target_arch = "wasm32"))]
