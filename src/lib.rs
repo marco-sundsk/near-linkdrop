@@ -57,9 +57,6 @@ const NO_DEPOSIT: u128 = 0;
 
 #[ext_contract(ext_self)]
 pub trait ExtLinkDrop {
-    /// Callback after plain account creation.
-    fn on_account_created(&mut self, predecessor_account_id: AccountId, amount: U128) -> bool;
-
     /// Callback after creating account and claiming linkdrop.
     fn on_account_created_and_claimed(&mut self, amount: U128) -> bool;
 }
@@ -287,6 +284,26 @@ impl LinkDrop {
         let pk = key.clone().into();
         let redbag_info = self.red_info.get(&pk).unwrap();
         redbag_info.remaining_balance.into()
+    }
+
+    /// callback after execution `create_account_and_claim`.
+    pub fn on_account_created_and_claimed(&mut self, amount: U128) -> bool {
+        assert_eq!(
+            env::predecessor_account_id(),
+            env::current_account_id(),
+            "Callback can only be called from the contract"
+        );
+        let creation_succeeded = is_promise_success();
+        if creation_succeeded {  // TODO: 红包逻辑中无需删除key, 但要补记相关信息
+            // Promise::new(env::current_account_id()).delete_key(env::signer_account_pk());
+            assert_eq!(1, 1, "Nop");
+        } else {
+            // In case of failure, put the amount back.
+            // TODO: 失败的情况下，回退资金及相关结构信息的更改 
+            // self.accounts.insert(&env::signer_account_pk(), &amount.into());
+            assert_eq!(1, 1, "Nop");
+        }
+        creation_succeeded
     }
 }
 
