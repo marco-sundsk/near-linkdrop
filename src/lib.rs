@@ -2,7 +2,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use near_sdk::collections::Map;
 use near_sdk::json_types::{Base58PublicKey, U128};
 use near_sdk::{
-    env, ext_contract, near_bindgen, AccountId, Balance, Promise, PublicKey,
+    env, ext_contract, near_bindgen, AccountId, Balance, Promise, PromiseResult, PublicKey,
 };
 use std::convert::TryInto;
 
@@ -162,8 +162,7 @@ impl LinkDrop {
             .create_account()
             .add_full_access_key(new_public_key.into())
             .transfer(amount)
-            .then(ext_self::on_account_created_and_claimed(
-                env::predecessor_account_id(),
+            .then(ext_self::on_account_created_and_claimed(   
                 amount.into(),
                 &env::current_account_id(),
                 NO_DEPOSIT,
