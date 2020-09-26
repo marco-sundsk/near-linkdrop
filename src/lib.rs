@@ -150,7 +150,7 @@ impl LinkDrop {
             .create_account()
             .add_full_access_key(new_public_key.into())
             .transfer(amount)
-            .then(ext_self::on_account_created(
+            .then(ext_self::on_account_created_and_claimed(
                 env::predecessor_account_id(),
                 amount.into(),
                 &env::current_account_id(),
