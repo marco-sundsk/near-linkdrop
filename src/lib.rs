@@ -61,6 +61,18 @@ pub trait ExtLinkDrop {
     fn on_account_created_and_claimed(&mut self, amount: U128) -> bool;
 }
 
+fn is_promise_success() -> bool {
+    assert_eq!(
+        env::promise_results_count(),
+        1,
+        "Contract expected a result on the callback"
+    );
+    match env::promise_result(0) {
+        PromiseResult::Successful(_) => true,
+        _ => false,
+    }
+}
+
 #[near_bindgen]
 impl LinkDrop {
 
